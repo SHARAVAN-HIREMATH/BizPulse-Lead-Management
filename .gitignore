@@ -1,0 +1,32 @@
+# ── OS files ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── IDE / Editor ─────────────────────────────────────────────
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# ── PHP / Environment ────────────────────────────────────────
+# Never commit real credentials — copy config/database.php
+# and set your local values
+*.env
+.env.local
+.env.production
+
+# ── Logs ─────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── Temporary / Build ────────────────────────────────────────
+/tmp/
+*.tmp
+*.bak
+*.cache
+
+# ── Composer (not used in this project, but just in case) ────
+/vendor/
+composer.lock
