@@ -1,58 +1,62 @@
 <?php
 /**
- * BizPulse — AJAX Status Update Handler (update_status.php)
+ * BizPulse — AJAX Status Update Handler (update_status.php) v2
  *
- * Receives a POST request from admin.js via the Fetch API.
- * Validates the lead ID and updates its status to "Contacted".
+ * Changes in v2:
+ *  - requireAuth() guard — only logged-in admins can update statuses
+ *  - Returns updated dashboard statistics in the JSON response
+ *    so admin.js can update the stat counters without a page reload
  *
  * Always returns JSON — never HTML.
  *
  * Security:
- *  - Only POST requests accepted
- *  - Only AJAX requests accepted (X-Requested-With header check)
- *  - ID validated as a positive integer
- *  - PDO prepared statement used for the UPDATE
- *  - No output buffering issues (header sent before any output)
+ *  - Authenticated session required
+ *  - POST + X-Requested-With: XMLHttpRequest required
+ *  - Lead ID validated as positive integer (FILTER_VALIDATE_INT)
+ *  - PDO prepared statement for the UPDATE
  */
 
-// ── Force JSON response headers immediately ───────────────────────────────
+// ── Force JSON headers immediately (no output buffering issues) ───────────
 header('Content-Type: application/json; charset=utf-8');
 
-// ── Helper: send JSON and terminate ──────────────────────────────────────
-function jsonResponse(bool $success, string $message = '', int $httpCode = 200): never
+// ── Auth guard ────────────────────────────────────────────────────────────
+require_once __DIR__ . '/includes/auth.php';
+
+// If not authenticated, return 401 JSON (not a redirect)
+startSecureSession();
+if (empty($_SESSION['user_id']) || ($_SESSION['role'] ?? '') !== 'admin') {
+    http_response_code(401);
+    echo json_encode(['success' => false, 'message' => 'Unauthorised.'], JSON_THROW_ON_ERROR);
+    exit;
+}
+
+// ── Helper: emit JSON and exit ────────────────────────────────────────────
+function jsonResponse(bool $success, string $message = '', int $httpCode = 200, array $extra = []): never
 {
     http_response_code($httpCode);
-    echo json_encode([
-        'success' => $success,
-        'message' => $message,
-    ], JSON_THROW_ON_ERROR);
+    $payload = array_merge(['success' => $success, 'message' => $message], $extra);
+    echo json_encode($payload, JSON_THROW_ON_ERROR);
     exit;
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 1. REQUEST METHOD CHECK — only POST allowed
+// 1. METHOD CHECK
 // ────────────────────────────────────────────────────────────────────────────
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     jsonResponse(false, 'Method not allowed.', 405);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 2. AJAX CHECK — verify the Fetch API set the custom header
-//    Prevents casual browser navigation to this endpoint
+// 2. AJAX CHECK
 // ────────────────────────────────────────────────────────────────────────────
-$isAjax = ($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') === 'XMLHttpRequest';
-if (!$isAjax) {
+if (($_SERVER['HTTP_X_REQUESTED_WITH'] ?? '') !== 'XMLHttpRequest') {
     jsonResponse(false, 'AJAX requests only.', 403);
 }
 
 // ────────────────────────────────────────────────────────────────────────────
 // 3. INPUT VALIDATION
-//    FILTER_VALIDATE_INT ensures the ID is a real integer > 0.
-//    Rejects strings, negative numbers, floats, and injection attempts.
 // ────────────────────────────────────────────────────────────────────────────
-$rawId = $_POST['id'] ?? null;
-
-$id = filter_var($rawId, FILTER_VALIDATE_INT, [
+$id = filter_var($_POST['id'] ?? null, FILTER_VALIDATE_INT, [
     'options' => ['min_range' => 1],
 ]);
 
@@ -61,32 +65,42 @@ if ($id === false || $id === null) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// 4. DATABASE UPDATE
-//    Only updates rows that are currently 'New' — idempotent by design.
+// 4. DATABASE UPDATE + STATS QUERY
 // ────────────────────────────────────────────────────────────────────────────
 require_once __DIR__ . '/config/database.php';
 
 try {
     $pdo = getDB();
 
-    // Prepared statement — :id is bound separately, never concatenated
+    // Update the lead status (prepared statement — no SQL injection possible)
     $stmt = $pdo->prepare(
         "UPDATE leads
          SET    status = 'Contacted'
          WHERE  id     = :id
          AND    status = 'New'"
     );
-
     $stmt->execute([':id' => $id]);
 
-    // rowCount() tells us if a row was actually updated
-    if ($stmt->rowCount() > 0) {
-        jsonResponse(true, 'Status updated to Contacted.');
-    } else {
-        // Either the lead doesn't exist or was already Contacted
-        // Return success:true — front-end can handle this gracefully
-        jsonResponse(true, 'No update needed (already Contacted or ID not found).');
-    }
+    $updated = $stmt->rowCount() > 0;
+
+    // ── Fetch fresh statistics for the dashboard counters ────────────────
+    // Returned to admin.js to update #stat-total, #stat-new, #stat-contacted
+    // without requiring a page reload.
+    $total     = (int) $pdo->query('SELECT COUNT(*) FROM leads')->fetchColumn();
+    $newCount  = (int) $pdo->query("SELECT COUNT(*) FROM leads WHERE status = 'New'")->fetchColumn();
+    $contacted = (int) $pdo->query("SELECT COUNT(*) FROM leads WHERE status = 'Contacted'")->fetchColumn();
+
+    $stats = [
+        'total'     => $total,
+        'newCount'  => $newCount,
+        'contacted' => $contacted,
+    ];
+
+    $message = $updated
+        ? 'Status updated to Contacted.'
+        : 'No update needed (already Contacted or ID not found).';
+
+    jsonResponse(true, $message, 200, ['stats' => $stats]);
 
 } catch (PDOException $e) {
     error_log('Status update failed: ' . $e->getMessage());

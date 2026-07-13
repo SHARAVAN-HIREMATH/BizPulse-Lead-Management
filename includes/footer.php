@@ -1,9 +1,11 @@
-<!-- ── Footer ────────────────────────────────────────────────────────────── -->
-<footer class="bg-slate-900 text-slate-400 mt-20">
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     FOOTER (includes/footer.php)
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<footer class="bg-slate-900 dark:bg-slate-950 text-slate-400 mt-20 transition-colors duration-300">
     <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
         <div class="grid grid-cols-1 md:grid-cols-3 gap-10">
 
-            <!-- Brand column -->
+            <!-- Brand -->
             <div class="space-y-4">
                 <div class="flex items-center gap-2">
                     <div class="w-8 h-8 bg-gradient-to-br from-indigo-500 to-blue-600 rounded-lg flex items-center justify-center shadow">
@@ -13,12 +15,13 @@
                     </div>
                     <span class="text-lg font-bold text-white">BizPulse</span>
                 </div>
-                <p class="text-sm leading-relaxed">
-                    Helping businesses grow digitally through cutting-edge web solutions, SEO strategies, and compelling content.
+                <p class="text-sm leading-relaxed text-slate-400">
+                    Helping businesses grow digitally through cutting-edge web solutions,
+                    SEO strategies, and compelling content.
                 </p>
             </div>
 
-            <!-- Quick links -->
+            <!-- Quick Links -->
             <div>
                 <h3 class="text-sm font-semibold text-white uppercase tracking-wider mb-4">Quick Links</h3>
                 <ul class="space-y-2 text-sm">
@@ -32,7 +35,7 @@
             <!-- Services -->
             <div>
                 <h3 class="text-sm font-semibold text-white uppercase tracking-wider mb-4">Our Services</h3>
-                <ul class="space-y-2 text-sm">
+                <ul class="space-y-2 text-sm text-slate-400">
                     <li>Web Design</li>
                     <li>SEO Optimization</li>
                     <li>Content Management</li>
@@ -40,27 +43,16 @@
             </div>
         </div>
 
-        <div class="border-t border-slate-800 mt-10 pt-8 text-center text-xs text-slate-500">
-            &copy; <?= date('Y') ?> BizPulse. Built with PHP, PDO &amp; Tailwind CSS — Interview Demo Project.
+        <!-- Bottom bar -->
+        <div class="border-t border-slate-800 dark:border-slate-700 mt-10 pt-8 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-500">
+            <span>&copy; <?= date('Y') ?> BizPulse. All rights reserved.</span>
+            <span>Built with PHP 8 &middot; PDO &middot; MySQL 8 &middot; Tailwind CSS</span>
         </div>
     </div>
 </footer>
-<!-- ── /Footer ───────────────────────────────────────────────────────────── -->
-
-<!-- Mobile nav toggle script (shared) -->
-<script>
-    (function () {
-        const btn  = document.getElementById('mobile-menu-btn');
-        const menu = document.getElementById('mobile-menu');
-        if (btn && menu) {
-            btn.addEventListener('click', function () {
-                const isOpen = !menu.classList.contains('hidden');
-                menu.classList.toggle('hidden', isOpen);
-                btn.setAttribute('aria-expanded', String(!isOpen));
-            });
-        }
-    })();
-</script>
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     /FOOTER
+     ═══════════════════════════════════════════════════════════════════════════ -->
 
 </body>
 </html>

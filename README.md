@@ -1,4 +1,4 @@
-# ⚡ BizPulse — Service & Lead Manager
+# ⚡ BizPulse — Service & Lead Manager v2
 
 > A production-ready mini CRM built with **PHP 8**, **PDO**, **MySQL**, **AJAX / Fetch API**, and **Tailwind CSS**.  
 > Designed as an interview-ready portfolio project demonstrating professional full-stack PHP development.
@@ -6,6 +6,7 @@
 [![PHP](https://img.shields.io/badge/PHP-8.2-777BB4?logo=php&logoColor=white)](https://www.php.net/)
 [![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?logo=mysql&logoColor=white)](https://www.mysql.com/)
 [![TailwindCSS](https://img.shields.io/badge/Tailwind-CDN-38BDF8?logo=tailwindcss&logoColor=white)](https://tailwindcss.com/)
+[![Version](https://img.shields.io/badge/Version-2.0-6366f1)](./README.md)
 [![License](https://img.shields.io/badge/License-Educational-green)](./README.md)
 
 ---
@@ -30,20 +31,26 @@ BizPulse is a simple business website where:
 
 ---
 
-## ✨ Features
+## ✨ Features — v2
 
 | Feature | Details |
 |---|---|
-| 🏠 Landing Page | Hero section, service cards, contact form |
+| 🏠 Landing Page | Hero, service cards, contact form |
 | 📋 Lead Capture | Full Name, Email, Service, Message |
-| ✅ Dual Validation | Client-side JavaScript + Server-side PHP |
+| 🎉 Success Modal | Animated popup with 5-second auto-close countdown |
+| ✅ Dual Validation | Client-side JS + Server-side PHP |
 | 💾 Database | MySQL 8 + PDO + Prepared Statements |
-| 🔒 Security | Sanitised input, escaped output, no SQL injection |
-| 📊 Admin Dashboard | Stats cards + responsive leads table |
-| ⚡ AJAX Updates | Status change via Fetch API — no page reload |
-| 🔍 Live Search | Filter leads by name, email, or service instantly |
+| 🔐 Authentication | Session-based login with `password_hash` / `password_verify` |
+| 🔒 Authorization | Role-based access guard — admin-only dashboard |
+| 🚪 Logout | Full session destroy + cookie expiry |
+| 📊 Admin Dashboard | Live stats + sortable table + welcome toast |
+| ⚡ Dynamic Stats | Stat counters update in-place after AJAX status change |
+| 🔍 Live Search | Filter leads by name, email, or service |
+| 🌙 Dark Mode | Full dark theme, localStorage persistence, no flash |
 | 📱 Responsive | Mobile card layout + desktop table layout |
-| 🎨 Modern UI | Tailwind CSS, Inter font, glassmorphism, animations |
+| 🚫 Custom 404 | Branded error page with illustration |
+| 🎨 Modern UI | Tailwind CSS dark: variants, Inter font, glassmorphism |
+| 🛡️ Security | Prepared statements, XSS escaping, session fixation prevention |
 
 ---
 

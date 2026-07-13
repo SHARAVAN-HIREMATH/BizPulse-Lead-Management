@@ -1,56 +1,60 @@
 <?php
 /**
- * BizPulse — Admin Dashboard (admin.php)
+ * BizPulse — Admin Dashboard (admin.php) v2
  *
- * Displays:
- *  - Statistics cards (Total / New / Contacted leads)
- *  - Responsive leads table (newest first)
- *  - Per-row AJAX status update button
+ * Protected page: requires admin authentication.
  *
- * In a real application this page would be protected by authentication.
- * For this interview demo it is intentionally left open.
+ * Features added in v2:
+ *  - requireAuth() guard — redirects to login.php if unauthenticated
+ *  - Logout button in header (via auth-aware navigation in header.php)
+ *  - Welcome toast after login
+ *  - Dynamic stat counters (updated via AJAX without reload)
+ *  - Full dark mode support
+ *  - Improved responsive table + mobile card layout
+ *  - Live search
  */
 
-// ── Page meta ─────────────────────────────────────────────────────────────
-$pageTitle       = 'Lead Dashboard';
-$metaDescription = 'BizPulse admin dashboard — manage and track all customer enquiries.';
+// ── MUST be first — before any HTML output ────────────────────────────────
+require_once __DIR__ . '/includes/auth.php';
+requireAuth(); // Redirect to login.php if not authenticated
 
-// ── Database connection ───────────────────────────────────────────────────
+// ── Load dependencies ─────────────────────────────────────────────────────
 require_once __DIR__ . '/config/database.php';
+
+// ── Get current user for the dashboard ───────────────────────────────────
+$user = currentUser();
+
+// ── Detect post-login redirect ────────────────────────────────────────────
+$justLoggedIn = isset($_GET['logged_in']) && $_GET['logged_in'] === '1';
 
 // ── Fetch statistics ──────────────────────────────────────────────────────
 try {
     $pdo = getDB();
 
-    // Total leads
-    $totalLeads = (int) $pdo->query('SELECT COUNT(*) FROM leads')->fetchColumn();
-
-    // New leads
-    $newLeads = (int) $pdo->query("SELECT COUNT(*) FROM leads WHERE status = 'New'")->fetchColumn();
-
-    // Contacted leads
+    $totalLeads     = (int) $pdo->query('SELECT COUNT(*) FROM leads')->fetchColumn();
+    $newLeads       = (int) $pdo->query("SELECT COUNT(*) FROM leads WHERE status = 'New'")->fetchColumn();
     $contactedLeads = (int) $pdo->query("SELECT COUNT(*) FROM leads WHERE status = 'Contacted'")->fetchColumn();
 
     // All leads — newest first
-    $stmt  = $pdo->query('SELECT * FROM leads ORDER BY created_at DESC');
-    $leads = $stmt->fetchAll(); // returns array of assoc arrays
+    $leads = $pdo->query('SELECT * FROM leads ORDER BY created_at DESC')->fetchAll();
 
 } catch (PDOException $e) {
     error_log('Admin dashboard error: ' . $e->getMessage());
-    $leads          = [];
-    $totalLeads     = 0;
-    $newLeads       = 0;
-    $contactedLeads = 0;
+    $leads = [];
+    $totalLeads = $newLeads = $contactedLeads = 0;
 }
 
-// ── Include header ────────────────────────────────────────────────────────
+// ── Page meta ─────────────────────────────────────────────────────────────
+$pageTitle       = 'Lead Dashboard';
+$metaDescription = 'BizPulse admin dashboard — manage and track all customer enquiries.';
+
 require_once __DIR__ . '/includes/header.php';
 ?>
 
-<!-- ══════════════════════════════════════════════════════════════════════
-     ADMIN DASHBOARD HEADER
-     ══════════════════════════════════════════════════════════════════════ -->
-<div class="bg-gradient-to-r from-indigo-700 via-indigo-600 to-blue-700 text-white" role="banner">
+<!-- ═══════════════════════════════════════════════════════════════════════════
+     DASHBOARD HEADER BANNER
+     ═══════════════════════════════════════════════════════════════════════════ -->
+<div class="bg-gradient-to-r from-indigo-700 via-indigo-600 to-blue-700 dark:from-indigo-900 dark:via-indigo-800 dark:to-blue-900 text-white transition-colors duration-300" role="banner">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -64,7 +68,7 @@ require_once __DIR__ . '/includes/header.php';
                     <h1 class="text-2xl sm:text-3xl font-bold tracking-tight">BizPulse Lead Dashboard</h1>
                 </div>
                 <p class="text-indigo-200 text-sm">
-                    Manage and track all customer enquiries in real time
+                    Welcome back, <strong class="text-white"><?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?></strong>
                     &nbsp;·&nbsp; Last refreshed: <?= date('d M Y, H:i') ?>
                 </p>
             </div>
@@ -81,80 +85,80 @@ require_once __DIR__ . '/includes/header.php';
 
 <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
 
-    <!-- ══════════════════════════════════════════════════════════════════
+    <!-- ═══════════════════════════════════════════════════════════════════════
          STATISTICS CARDS
-         ══════════════════════════════════════════════════════════════════ -->
+         ═══════════════════════════════════════════════════════════════════════ -->
     <section aria-label="Lead statistics" class="mb-10">
         <div class="grid grid-cols-1 sm:grid-cols-3 gap-5 stagger-children">
 
             <!-- Total Leads -->
-            <div class="animate-fade-in-up bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-5">
-                <div class="w-14 h-14 bg-indigo-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <svg class="w-7 h-7 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <div class="stat-card animate-fade-in-up bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 flex items-center gap-5">
+                <div class="w-14 h-14 bg-indigo-100 dark:bg-indigo-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-7 h-7 text-indigo-600 dark:text-indigo-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Total Leads</p>
-                    <p class="text-4xl font-extrabold text-slate-900 leading-none mt-1" id="stat-total">
-                        <?= htmlspecialchars((string) $totalLeads) ?>
+                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Total Leads</p>
+                    <p class="text-4xl font-extrabold text-slate-900 dark:text-white leading-none mt-1 tabular-nums" id="stat-total">
+                        <?= $totalLeads ?>
                     </p>
                 </div>
             </div>
 
             <!-- New Leads -->
-            <div class="animate-fade-in-up bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-5">
-                <div class="w-14 h-14 bg-amber-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <svg class="w-7 h-7 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <div class="stat-card animate-fade-in-up bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 flex items-center gap-5">
+                <div class="w-14 h-14 bg-amber-100 dark:bg-amber-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-7 h-7 text-amber-600 dark:text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">New Leads</p>
-                    <p class="text-4xl font-extrabold text-amber-600 leading-none mt-1" id="stat-new">
-                        <?= htmlspecialchars((string) $newLeads) ?>
+                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">New Leads</p>
+                    <p class="text-4xl font-extrabold text-amber-600 dark:text-amber-400 leading-none mt-1 tabular-nums" id="stat-new">
+                        <?= $newLeads ?>
                     </p>
                 </div>
             </div>
 
             <!-- Contacted Leads -->
-            <div class="animate-fade-in-up bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex items-center gap-5">
-                <div class="w-14 h-14 bg-emerald-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                    <svg class="w-7 h-7 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <div class="stat-card animate-fade-in-up bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-6 flex items-center gap-5">
+                <div class="w-14 h-14 bg-emerald-100 dark:bg-emerald-900/40 rounded-xl flex items-center justify-center flex-shrink-0">
+                    <svg class="w-7 h-7 text-emerald-600 dark:text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                               d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                 </div>
                 <div>
-                    <p class="text-sm font-medium text-slate-500 uppercase tracking-wide">Contacted</p>
-                    <p class="text-4xl font-extrabold text-emerald-600 leading-none mt-1" id="stat-contacted">
-                        <?= htmlspecialchars((string) $contactedLeads) ?>
+                    <p class="text-sm font-medium text-slate-500 dark:text-slate-400 uppercase tracking-wide">Contacted</p>
+                    <p class="text-4xl font-extrabold text-emerald-600 dark:text-emerald-400 leading-none mt-1 tabular-nums" id="stat-contacted">
+                        <?= $contactedLeads ?>
                     </p>
                 </div>
             </div>
+
         </div>
     </section>
 
-    <!-- ══════════════════════════════════════════════════════════════════
+    <!-- ═══════════════════════════════════════════════════════════════════════
          LEADS TABLE
-         ══════════════════════════════════════════════════════════════════ -->
+         ═══════════════════════════════════════════════════════════════════════ -->
     <section aria-labelledby="leads-table-heading">
 
-        <!-- Table header bar -->
+        <!-- Header bar -->
         <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4">
             <div>
-                <h2 id="leads-table-heading" class="text-lg font-bold text-slate-900">All Enquiries</h2>
-                <p class="text-sm text-slate-500">Sorted by most recent first</p>
+                <h2 id="leads-table-heading" class="text-lg font-bold text-slate-900 dark:text-white">All Enquiries</h2>
+                <p class="text-sm text-slate-500 dark:text-slate-400">Sorted by most recent first</p>
             </div>
-
             <!-- Live search -->
             <div class="relative">
                 <input type="search"
                        id="lead-search"
                        placeholder="Search leads…"
-                       class="form-input pl-9 pr-4 py-2.5 border border-slate-200 rounded-xl text-sm bg-white w-full sm:w-64"
+                       class="form-input pl-9 pr-4 py-2.5 border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-800 text-slate-900 dark:text-white placeholder-slate-400 dark:placeholder-slate-500 rounded-xl text-sm w-full sm:w-64"
                        aria-label="Search leads" />
                 <svg class="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
@@ -162,16 +166,16 @@ require_once __DIR__ . '/includes/header.php';
             </div>
         </div>
 
-        <!-- Responsive card layout (mobile) / table (desktop) -->
         <?php if (empty($leads)): ?>
-        <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-16 text-center">
-            <svg class="w-16 h-16 text-slate-200 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+        <!-- Empty state -->
+        <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-16 text-center">
+            <svg class="w-16 h-16 text-slate-200 dark:text-slate-600 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
                       d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
             </svg>
-            <h3 class="text-slate-900 font-semibold text-lg mb-1">No Leads Yet</h3>
-            <p class="text-slate-500 text-sm">
-                When visitors submit the contact form, their enquiries will appear here.
+            <h3 class="text-slate-900 dark:text-white font-semibold text-lg mb-1">No Leads Yet</h3>
+            <p class="text-slate-500 dark:text-slate-400 text-sm max-w-xs mx-auto">
+                Enquiries submitted through the contact form will appear here.
             </p>
             <a href="/index.php#contact"
                class="mt-6 inline-flex items-center gap-2 px-5 py-2.5 bg-indigo-600 text-white text-sm font-semibold rounded-xl hover:bg-indigo-700 transition-colors">
@@ -181,12 +185,12 @@ require_once __DIR__ . '/includes/header.php';
 
         <?php else: ?>
 
-        <!-- Desktop Table -->
-        <div class="hidden md:block bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden animate-fade-in-up">
+        <!-- ── Desktop Table ─────────────────────────────────────────────── -->
+        <div class="hidden md:block bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm overflow-hidden animate-fade-in-up">
             <div class="overflow-x-auto">
                 <table class="w-full text-sm" id="leads-table" aria-label="Customer leads table">
                     <thead>
-                        <tr class="bg-slate-50 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                        <tr class="bg-slate-50 dark:bg-slate-700/60 border-b border-slate-100 dark:border-slate-700 text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase tracking-wider">
                             <th class="text-left px-5 py-3.5" scope="col">#</th>
                             <th class="text-left px-5 py-3.5" scope="col">Name</th>
                             <th class="text-left px-5 py-3.5" scope="col">Email</th>
@@ -197,73 +201,70 @@ require_once __DIR__ . '/includes/header.php';
                             <th class="text-center px-5 py-3.5" scope="col">Action</th>
                         </tr>
                     </thead>
-                    <tbody class="divide-y divide-slate-50" id="leads-tbody">
+                    <tbody class="divide-y divide-slate-50 dark:divide-slate-700" id="leads-tbody">
 
                         <?php foreach ($leads as $lead):
-                            // All output is escaped via htmlspecialchars() — prevents XSS
                             $id          = (int) $lead['id'];
                             $safeName    = htmlspecialchars($lead['name'],    ENT_QUOTES, 'UTF-8');
                             $safeEmail   = htmlspecialchars($lead['email'],   ENT_QUOTES, 'UTF-8');
                             $safeService = htmlspecialchars($lead['service'], ENT_QUOTES, 'UTF-8');
                             $safeMessage = htmlspecialchars($lead['message'], ENT_QUOTES, 'UTF-8');
-                            $safeDate    = htmlspecialchars(date('d M Y, H:i', strtotime($lead['created_at'])), ENT_QUOTES, 'UTF-8');
+                            $safeDate    = date('d M Y, H:i', strtotime($lead['created_at']));
                             $status      = $lead['status'];
                             $isNew       = ($status === 'New');
 
-                            // Badge styling
                             $badgeClass = $isNew
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'bg-emerald-100 text-emerald-700';
+                                ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                                : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
 
-                            // Button styling
                             $btnClass = $isNew
-                                ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100 cursor-pointer'
-                                : 'bg-emerald-100 text-emerald-700 border-emerald-200 cursor-default';
+                                ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40 cursor-pointer'
+                                : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 cursor-default opacity-75';
+
                             $btnText     = $isNew ? 'Mark as Contacted' : '✓ Contacted';
                             $btnDisabled = $isNew ? '' : 'disabled';
-                        ?>
-                        <tr class="lead-row" data-name="<?= strtolower($safeName) ?>" data-email="<?= strtolower($safeEmail) ?>" data-service="<?= strtolower($safeService) ?>">
-                            <!-- ID -->
-                            <td class="px-5 py-4 font-mono text-xs text-slate-400">#<?= $id ?></td>
 
-                            <!-- Name -->
+                            $avatarLetter = htmlspecialchars(strtoupper(substr($lead['name'], 0, 1)), ENT_QUOTES, 'UTF-8');
+                        ?>
+                        <tr class="lead-row"
+                            data-name="<?= strtolower($safeName) ?>"
+                            data-email="<?= strtolower($safeEmail) ?>"
+                            data-service="<?= strtolower($safeService) ?>">
+
+                            <td class="px-5 py-4 font-mono text-xs text-slate-400 dark:text-slate-500">#<?= $id ?></td>
+
                             <td class="px-5 py-4">
                                 <div class="flex items-center gap-3">
-                                    <!-- Avatar initial -->
                                     <div class="w-8 h-8 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-white text-xs font-bold flex-shrink-0" aria-hidden="true">
-                                        <?= htmlspecialchars(strtoupper(substr($lead['name'], 0, 1)), ENT_QUOTES, 'UTF-8') ?>
+                                        <?= $avatarLetter ?>
                                     </div>
-                                    <span class="font-medium text-slate-800"><?= $safeName ?></span>
+                                    <span class="font-medium text-slate-800 dark:text-slate-200"><?= $safeName ?></span>
                                 </div>
                             </td>
 
-                            <!-- Email -->
                             <td class="px-5 py-4">
-                                <a href="mailto:<?= $safeEmail ?>" class="text-indigo-600 hover:text-indigo-800 hover:underline transition-colors">
+                                <a href="mailto:<?= $safeEmail ?>"
+                                   class="text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 hover:underline transition-colors text-xs">
                                     <?= $safeEmail ?>
                                 </a>
                             </td>
 
-                            <!-- Service -->
                             <td class="px-5 py-4">
-                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700">
+                                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 dark:bg-indigo-900/40 text-indigo-700 dark:text-indigo-300">
                                     <?= $safeService ?>
                                 </span>
                             </td>
 
-                            <!-- Message (truncated) -->
                             <td class="px-5 py-4 max-w-xs">
-                                <p class="text-slate-600 line-clamp-2 text-xs leading-relaxed" title="<?= $safeMessage ?>">
+                                <p class="text-slate-600 dark:text-slate-400 line-clamp-2 text-xs leading-relaxed" title="<?= $safeMessage ?>">
                                     <?= $safeMessage ?>
                                 </p>
                             </td>
 
-                            <!-- Date -->
-                            <td class="px-5 py-4 text-slate-500 text-xs whitespace-nowrap">
-                                <?= $safeDate ?>
+                            <td class="px-5 py-4 text-slate-500 dark:text-slate-400 text-xs whitespace-nowrap">
+                                <?= htmlspecialchars($safeDate, ENT_QUOTES, 'UTF-8') ?>
                             </td>
 
-                            <!-- Status badge -->
                             <td class="px-5 py-4 text-center" id="status-cell-<?= $id ?>">
                                 <span id="status-badge-<?= $id ?>"
                                       class="status-badge inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold <?= $badgeClass ?>">
@@ -271,7 +272,6 @@ require_once __DIR__ . '/includes/header.php';
                                 </span>
                             </td>
 
-                            <!-- Action button -->
                             <td class="px-5 py-4 text-center">
                                 <button id="btn-<?= $id ?>"
                                         onclick="updateLeadStatus(<?= $id ?>, this)"
@@ -289,14 +289,13 @@ require_once __DIR__ . '/includes/header.php';
             </div>
 
             <!-- Table footer -->
-            <div class="px-5 py-3 bg-slate-50 border-t border-slate-100 text-xs text-slate-500">
-                Showing <span id="visible-count"><?= count($leads) ?></span> of <?= count($leads) ?> lead(s)
+            <div class="px-5 py-3 bg-slate-50 dark:bg-slate-700/40 border-t border-slate-100 dark:border-slate-700 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
+                <span>Showing <span id="visible-count"><?= count($leads) ?></span> of <?= count($leads) ?> enquiry(s)</span>
+                <span>Newest first</span>
             </div>
         </div>
 
-        <!-- ─────────────────────────────────────────────────────────────────
-             MOBILE CARDS (visible only on small screens)
-             ───────────────────────────────────────────────────────────────── -->
+        <!-- ── Mobile Cards ──────────────────────────────────────────────── -->
         <div class="md:hidden space-y-4 animate-fade-in-up" id="mobile-leads">
             <?php foreach ($leads as $lead):
                 $id          = (int) $lead['id'];
@@ -304,37 +303,38 @@ require_once __DIR__ . '/includes/header.php';
                 $safeEmail   = htmlspecialchars($lead['email'],   ENT_QUOTES, 'UTF-8');
                 $safeService = htmlspecialchars($lead['service'], ENT_QUOTES, 'UTF-8');
                 $safeMessage = htmlspecialchars($lead['message'], ENT_QUOTES, 'UTF-8');
-                $safeDate    = htmlspecialchars(date('d M Y, H:i', strtotime($lead['created_at'])), ENT_QUOTES, 'UTF-8');
+                $safeDate    = date('d M Y, H:i', strtotime($lead['created_at']));
                 $status      = $lead['status'];
                 $isNew       = ($status === 'New');
 
-                $badgeClass = $isNew ? 'bg-amber-100 text-amber-700' : 'bg-emerald-100 text-emerald-700';
+                $badgeClass = $isNew
+                    ? 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-400'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-400';
                 $btnClass   = $isNew
-                    ? 'bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100'
-                    : 'bg-emerald-100 text-emerald-700 border-emerald-200 cursor-default';
+                    ? 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-800 hover:bg-amber-100 dark:hover:bg-amber-900/40'
+                    : 'bg-emerald-100 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800 opacity-75';
                 $btnText    = $isNew ? 'Mark as Contacted' : '✓ Contacted';
                 $btnDisabled = $isNew ? '' : 'disabled';
             ?>
-            <div class="bg-white rounded-2xl border border-slate-100 shadow-sm p-5">
+            <div class="bg-white dark:bg-slate-800 rounded-2xl border border-slate-100 dark:border-slate-700 shadow-sm p-5">
                 <div class="flex items-start justify-between mb-3">
                     <div class="flex items-center gap-3">
                         <div class="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-400 to-blue-500 flex items-center justify-center text-white text-sm font-bold flex-shrink-0">
                             <?= htmlspecialchars(strtoupper(substr($lead['name'], 0, 1)), ENT_QUOTES, 'UTF-8') ?>
                         </div>
                         <div>
-                            <p class="font-semibold text-slate-900 text-sm"><?= $safeName ?></p>
-                            <a href="mailto:<?= $safeEmail ?>" class="text-xs text-indigo-600"><?= $safeEmail ?></a>
+                            <p class="font-semibold text-slate-900 dark:text-white text-sm"><?= $safeName ?></p>
+                            <a href="mailto:<?= $safeEmail ?>" class="text-xs text-indigo-600 dark:text-indigo-400"><?= $safeEmail ?></a>
                         </div>
                     </div>
-                    <span id="status-badge-mobile-<?= $id ?>"
-                          class="status-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold <?= $badgeClass ?>">
+                    <span class="status-badge inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold <?= $badgeClass ?>">
                         <?= htmlspecialchars($status, ENT_QUOTES, 'UTF-8') ?>
                     </span>
                 </div>
-                <div class="space-y-1.5 text-xs text-slate-600 mb-3">
-                    <p><span class="font-medium text-slate-700">Service:</span> <?= $safeService ?></p>
-                    <p><span class="font-medium text-slate-700">Date:</span> <?= $safeDate ?></p>
-                    <p class="text-slate-500 line-clamp-2"><?= $safeMessage ?></p>
+                <div class="space-y-1.5 text-xs text-slate-600 dark:text-slate-400 mb-3">
+                    <p><span class="font-medium text-slate-700 dark:text-slate-300">Service:</span> <?= $safeService ?></p>
+                    <p><span class="font-medium text-slate-700 dark:text-slate-300">Date:</span> <?= htmlspecialchars($safeDate, ENT_QUOTES, 'UTF-8') ?></p>
+                    <p class="line-clamp-2"><?= $safeMessage ?></p>
                 </div>
                 <button onclick="updateLeadStatus(<?= $id ?>, this)"
                         class="w-full py-2 text-xs font-semibold border rounded-lg transition-all <?= $btnClass ?>"
@@ -350,31 +350,28 @@ require_once __DIR__ . '/includes/header.php';
 
 </main>
 
-<!-- ── Admin JS + live search ────────────────────────────────────────────── -->
+<!-- ── Scripts ───────────────────────────────────────────────────────────────── -->
 <script src="/assets/js/admin.js"></script>
 <script>
-/**
- * Live search — filters table rows as the user types.
- * Searches across name, email, and service columns.
- */
-(function () {
-    'use strict';
+'use strict';
 
-    const searchInput  = document.getElementById('lead-search');
-    const rows         = document.querySelectorAll('#leads-tbody .lead-row');
-    const visibleCount = document.getElementById('visible-count');
+// ── Live Search ────────────────────────────────────────────────────────────
+(function () {
+    var searchInput  = document.getElementById('lead-search');
+    var rows         = document.querySelectorAll('#leads-tbody .lead-row');
+    var visibleCount = document.getElementById('visible-count');
 
     if (!searchInput) return;
 
     searchInput.addEventListener('input', function () {
-        const query = this.value.toLowerCase().trim();
-        let count   = 0;
+        var query = this.value.toLowerCase().trim();
+        var count = 0;
 
         rows.forEach(function (row) {
-            const name    = row.dataset.name    || '';
-            const email   = row.dataset.email   || '';
-            const service = row.dataset.service || '';
-            const matches = name.includes(query) || email.includes(query) || service.includes(query);
+            var matches =
+                (row.dataset.name    || '').includes(query) ||
+                (row.dataset.email   || '').includes(query) ||
+                (row.dataset.service || '').includes(query);
 
             row.style.display = matches ? '' : 'none';
             if (matches) count++;
@@ -383,6 +380,13 @@ require_once __DIR__ . '/includes/header.php';
         if (visibleCount) visibleCount.textContent = String(count);
     });
 })();
+
+// ── Welcome toast after login ──────────────────────────────────────────────
+<?php if ($justLoggedIn): ?>
+document.addEventListener('DOMContentLoaded', function () {
+    showToast('Welcome back, <?= htmlspecialchars($user['name'], ENT_QUOTES, 'UTF-8') ?>! You are signed in.', 'success');
+});
+<?php endif; ?>
 </script>
 
 <?php require_once __DIR__ . '/includes/footer.php'; ?>

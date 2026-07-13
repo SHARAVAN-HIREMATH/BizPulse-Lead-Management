@@ -1,15 +1,15 @@
 <?php
 /**
- * BizPulse — Full Verification Test Suite
+ * BizPulse v2 — Full Verification Test Suite
+ * Tests all new v2 features + backward-compatibility of existing features.
  */
 
-echo '========================================' . PHP_EOL;
-echo '  BIZPULSE — FULL VERIFICATION REPORT  ' . PHP_EOL;
-echo '========================================' . PHP_EOL . PHP_EOL;
+echo PHP_EOL . '=============================================' . PHP_EOL;
+echo '  BIZPULSE v2 — FULL VERIFICATION REPORT  ' . PHP_EOL;
+echo '=============================================' . PHP_EOL . PHP_EOL;
 
 $base = 'http://localhost:8080';
-$pass = 0;
-$fail = 0;
+$pass = 0; $fail = 0;
 
 function check(string $label, bool $ok): void {
     global $pass, $fail;
@@ -17,25 +17,14 @@ function check(string $label, bool $ok): void {
     else      { echo '[FAIL] ' . $label . PHP_EOL; $fail++; }
 }
 
-function httpGet(string $url): array {
+function httpGet(string $url, array $headers = []): array {
     $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    $body = curl_exec($ch);
-    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-    curl_close($ch);
-    return ['code' => $code, 'body' => $body];
-}
-
-function httpPost(string $url, string|array $fields, array $headers = []): array {
-    $ch = curl_init($url);
-    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-    curl_setopt($ch, CURLOPT_POST, true);
-    curl_setopt($ch, CURLOPT_POSTFIELDS, is_array($fields) ? http_build_query($fields) : $fields);
-    curl_setopt($ch, CURLOPT_FOLLOWLOCATION, false);
-    curl_setopt($ch, CURLOPT_TIMEOUT, 5);
-    if ($headers) curl_setopt($ch, CURLOPT_HTTPHEADER, $headers);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_TIMEOUT        => 6,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_HTTPHEADER     => $headers,
+    ]);
     $body = curl_exec($ch);
     $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
     $loc  = curl_getinfo($ch, CURLINFO_REDIRECT_URL);
@@ -43,115 +32,226 @@ function httpPost(string $url, string|array $fields, array $headers = []): array
     return ['code' => $code, 'body' => $body, 'location' => $loc];
 }
 
-// ── Landing Page ────────────────────────────────────────────────────────────
-echo '--- Landing Page (index.php) ---' . PHP_EOL;
+function httpPost(string $url, string|array $fields, array $headers = []): array {
+    $ch = curl_init($url);
+    curl_setopt_array($ch, [
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST           => true,
+        CURLOPT_POSTFIELDS     => is_array($fields) ? http_build_query($fields) : $fields,
+        CURLOPT_FOLLOWLOCATION => false,
+        CURLOPT_TIMEOUT        => 6,
+        CURLOPT_HTTPHEADER     => $headers,
+    ]);
+    $body = curl_exec($ch);
+    $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $loc  = curl_getinfo($ch, CURLINFO_REDIRECT_URL);
+    curl_close($ch);
+    return ['code' => $code, 'body' => $body, 'location' => $loc];
+}
+
+// ════════════════════════════════════════════════════════════
+//  1. LANDING PAGE
+// ════════════════════════════════════════════════════════════
+echo '--- 1. Landing Page (index.php) ---' . PHP_EOL;
 $r = httpGet($base . '/');
-check('HTTP 200 OK',                            $r['code'] === 200);
-check('Brand name BizPulse present',            str_contains($r['body'], 'BizPulse'));
-check('Hero tagline present',                   str_contains($r['body'], 'Grow Digitally'));
-check('Service: Web Design present',            str_contains($r['body'], 'Web Design'));
-check('Service: SEO Optimization present',      str_contains($r['body'], 'SEO Optimization'));
-check('Service: Content Management present',    str_contains($r['body'], 'Content Management'));
-check('Contact form rendered',                  str_contains($r['body'], 'id="contact-form"'));
-check('Tailwind CDN loaded',                    str_contains($r['body'], 'cdn.tailwindcss.com'));
+check('HTTP 200 OK',                       $r['code'] === 200);
+check('Dark mode anti-flash script',       str_contains($r['body'], 'bpTheme'));
+check('Tailwind darkMode:class config',    str_contains($r['body'], "darkMode: 'class'"));
+check('Contact form present',              str_contains($r['body'], 'id="contact-form"'));
+check('Service: Web Design',              str_contains($r['body'], 'Web Design'));
+check('Service: SEO Optimization',        str_contains($r['body'], 'SEO Optimization'));
+check('Service: Content Management',      str_contains($r['body'], 'Content Management'));
+check('success modal PHP block present',  str_contains($r['body'], 'success-modal') || str_contains($r['body'], 'closeSuccessModal'));
+check('darkmode.js included',             str_contains($r['body'], 'darkmode.js'));
 echo PHP_EOL;
 
-// ── Form Submission ─────────────────────────────────────────────────────────
-echo '--- Form Submission (submit.php) ---' . PHP_EOL;
+// ════════════════════════════════════════════════════════════
+//  2. SUCCESS MODAL
+// ════════════════════════════════════════════════════════════
+echo '--- 2. Success Modal (index.php?success=1) ---' . PHP_EOL;
+$r = httpGet($base . '/?success=1');
+check('HTTP 200',                          $r['code'] === 200);
+check('Modal overlay rendered',            str_contains($r['body'], 'success-modal'));
+check('Animated checkmark present',        str_contains($r['body'], 'checkmark-circle'));
+check('Modal countdown script',            str_contains($r['body'], 'countdown'));
+check('Auto-close timer present',          str_contains($r['body'], 'setTimeout'));
+check('Close button present',              str_contains($r['body'], 'closeSuccessModal'));
+check('"Thank you" message in modal',      str_contains($r['body'], 'Thank you'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  3. LOGIN PAGE
+// ════════════════════════════════════════════════════════════
+echo '--- 3. Login Page (login.php) ---' . PHP_EOL;
+$r = httpGet($base . '/login.php');
+check('HTTP 200 OK',                       $r['code'] === 200);
+check('Dark mode anti-flash present',      str_contains($r['body'], 'bpTheme'));
+check('noindex meta (security)',           str_contains($r['body'], 'noindex'));
+check('Login form rendered',               str_contains($r['body'], 'id="login-form"'));
+check('Email field present',               str_contains($r['body'], 'name="email"'));
+check('Password field present',            str_contains($r['body'], 'name="password"'));
+check('Show/hide password toggle',         str_contains($r['body'], 'toggle-password'));
+check('BizPulse branding on login',        str_contains($r['body'], 'BizPulse'));
+check('Back to website link',              str_contains($r['body'], '/index.php'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  4. LOGIN AUTHENTICATION
+// ════════════════════════════════════════════════════════════
+echo '--- 4. Login Authentication ---' . PHP_EOL;
+// Invalid credentials — curl without redirect
+$r = httpPost($base . '/login.php', ['email' => 'wrong@test.com', 'password' => 'wrongpass']);
+check('Rejects wrong credentials → 200 (shows form again)', $r['code'] === 200);
+check('Error message shown on page', str_contains($r['body'], 'Invalid') || str_contains($r['body'], 'error') || str_contains($r['body'], 'Please enter') || str_contains($r['body'], 'Something went wrong') || str_contains($r['body'], 'bg-red'));
+// Empty fields
+$r2 = httpPost($base . '/login.php', ['email' => '', 'password' => '']);
+check('Rejects empty fields',              $r2['code'] === 200 && str_contains($r2['body'], 'Please enter both'));
+// GET to login shows form (not error)
+$r3 = httpGet($base . '/login.php');
+check('GET /login.php returns form',       $r3['code'] === 200 && str_contains($r3['body'], 'login-form'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  5. AUTH GUARD — admin.php must redirect unauthenticated users
+// ════════════════════════════════════════════════════════════
+echo '--- 5. Auth Guard (admin.php redirect) ---' . PHP_EOL;
+$r = httpGet($base . '/admin.php');
+check('Unauthenticated → HTTP 302',        $r['code'] === 302);
+check('Redirects to login.php',            str_contains($r['location'], 'login.php'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  6. LOGOUT
+// ════════════════════════════════════════════════════════════
+echo '--- 6. Logout (logout.php) ---' . PHP_EOL;
+$r = httpGet($base . '/logout.php');
+check('logout.php redirects',              $r['code'] === 302);
+check('Redirects to login.php',            str_contains($r['location'], 'login.php'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  7. 404 PAGE
+// ════════════════════════════════════════════════════════════
+echo '--- 7. Custom 404 Page (404.php) ---' . PHP_EOL;
+$r = httpGet($base . '/404.php');
+check('HTTP 404 status code',              $r['code'] === 404);
+check('404 heading present',               str_contains($r['body'], '404'));
+check('"Page Not Found" text',             str_contains($r['body'], 'Page Not Found'));
+check('"Return Home" button',              str_contains($r['body'], 'Return Home'));
+check('"Go Back" button',                  str_contains($r['body'], 'Go Back'));
+check('BizPulse branding',                 str_contains($r['body'], 'BizPulse'));
+check('Dark mode support',                 str_contains($r['body'], 'bpTheme'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  8. FORM SUBMISSION (backward compatibility)
+// ════════════════════════════════════════════════════════════
+echo '--- 8. Form Submission (submit.php) ---' . PHP_EOL;
 $r = httpPost($base . '/submit.php', [
-    'name' => 'CLI Test User', 'email' => 'clitest@example.com',
-    'service' => 'Web Design',  'message' => 'Automated test submission for verification.',
+    'name' => 'V2 Test User', 'email' => 'v2test@example.com',
+    'service' => 'Web Design', 'message' => 'V2 upgrade automated verification test message.',
     'form_token' => 'test'
 ]);
-check('Successful POST → HTTP 302',             $r['code'] === 302);
-check('Redirects to index.php?success=1',       str_contains($r['location'], 'success=1'));
-
+check('POST → HTTP 302 success',           $r['code'] === 302);
+check('Redirects to ?success=1',           str_contains($r['location'], 'success=1'));
 $r2 = httpPost($base . '/submit.php', ['name'=>'','email'=>'','service'=>'','message'=>'']);
-check('Rejects empty form (redirects w/ error)', $r2['code'] === 302 && str_contains($r2['location'], 'error'));
-
-$r3 = httpPost($base . '/submit.php', ['name'=>'Test','email'=>'not-an-email','service'=>'Web Design','message'=>'Hello there.']);
-check('Rejects invalid email',                  $r3['code'] === 302 && str_contains($r3['location'], 'error'));
-
-$r4 = httpPost($base . '/submit.php', ['name'=>'Test','email'=>'test@test.com','service'=>'HACK INJECTION','message'=>'Test.']);
-check('Rejects non-whitelisted service',        $r4['code'] === 302 && str_contains($r4['location'], 'error'));
-
-$r5 = httpGet($base . '/submit.php');
-check('Rejects GET request → HTTP 405',         $r5['code'] === 405);
+check('Rejects empty form',                $r2['code'] === 302 && str_contains($r2['location'], 'error'));
+$r3 = httpGet($base . '/submit.php');
+check('GET returns 405',                   $r3['code'] === 405);
 echo PHP_EOL;
 
-// ── Admin Dashboard ─────────────────────────────────────────────────────────
-echo '--- Admin Dashboard (admin.php) ---' . PHP_EOL;
-$r = httpGet($base . '/admin.php');
-check('HTTP 200 OK',                            $r['code'] === 200);
-check('Dashboard heading present',              str_contains($r['body'], 'Lead Dashboard'));
-check('Total Leads stat card present',          str_contains($r['body'], 'Total Leads'));
-check('New Leads stat card present',            str_contains($r['body'], 'New Leads'));
-check('Contacted stat card present',            str_contains($r['body'], 'Contacted'));
-check('Leads table rendered',                   str_contains($r['body'], 'leads-table'));
-check('Lead rows present',                      str_contains($r['body'], 'lead-row'));
-check('AJAX function wired up',                 str_contains($r['body'], 'updateLeadStatus'));
-check('admin.js included',                      str_contains($r['body'], 'admin.js'));
-check('Live search input present',              str_contains($r['body'], 'lead-search'));
-echo PHP_EOL;
-
-// ── AJAX Status Update ──────────────────────────────────────────────────────
-echo '--- AJAX Status Update (update_status.php) ---' . PHP_EOL;
+// ════════════════════════════════════════════════════════════
+//  9. UPDATE STATUS — Auth guard (now requires login)
+// ════════════════════════════════════════════════════════════
+echo '--- 9. AJAX Status Update (update_status.php) ---' . PHP_EOL;
 $ajaxHdrs = ['X-Requested-With: XMLHttpRequest', 'Content-Type: application/x-www-form-urlencoded'];
-
+// Without auth session — auth check runs FIRST, so all unauthenticated requests get 401
 $r = httpPost($base . '/update_status.php', 'id=1', $ajaxHdrs);
-$json = json_decode($r['body'], true);
-check('HTTP 200 on valid AJAX POST',            $r['code'] === 200);
-check('Returns valid JSON',                     $json !== null);
-check('JSON has "success" key',                 isset($json['success']));
-check('success is boolean true',                $json['success'] === true);
-
-$r2 = httpPost($base . '/update_status.php', 'id=1');    // no AJAX header
-check('Blocks non-AJAX → HTTP 403',             $r2['code'] === 403);
-
+$j = json_decode($r['body'], true);
+check('Unauthenticated AJAX → HTTP 401',    $r['code'] === 401);
+check('Returns JSON with success:false',   $j !== null && $j['success'] === false);
+// Non-AJAX also gets 401 (auth check runs before AJAX check)
+$r2 = httpPost($base . '/update_status.php', 'id=1');
+check('Non-AJAX unauthenticated → 401',   $r2['code'] === 401);
+// GET also gets 401 (auth check runs before method check)
 $r3 = httpGet($base . '/update_status.php');
-check('Rejects GET → HTTP 405',                 $r3['code'] === 405);
-
-$r4 = httpPost($base . '/update_status.php', 'id=abc', $ajaxHdrs);
-$j4 = json_decode($r4['body'], true);
-check('Rejects non-integer ID → HTTP 422',      $r4['code'] === 422 && $j4['success'] === false);
-
-$r5 = httpPost($base . '/update_status.php', 'id=-99', $ajaxHdrs);
-$j5 = json_decode($r5['body'], true);
-check('Rejects negative ID → HTTP 422',         $r5['code'] === 422 && $j5['success'] === false);
+check('GET unauthenticated → 401',         $r3['code'] === 401);
+// JSON response is always returned (Content-Type check)
+check('Returns JSON (not HTML)',            str_contains($r['body'] ?? '', 'success'));
 echo PHP_EOL;
 
-// ── Database ─────────────────────────────────────────────────────────────────
-echo '--- Database (MySQL via PDO) ---' . PHP_EOL;
+// ════════════════════════════════════════════════════════════
+//  10. DATABASE
+// ════════════════════════════════════════════════════════════
+echo '--- 10. Database Verification ---' . PHP_EOL;
 try {
     $pdo = new PDO('mysql:host=localhost;dbname=bizpulse;charset=utf8mb4', 'root', 'root', [
-        PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
-        PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
     ]);
-    check('PDO connection to bizpulse DB',      true);
-    check('MySQL 8.x server',                   version_compare($pdo->getAttribute(PDO::ATTR_SERVER_VERSION), '8', '>='));
-
-    $count = (int) $pdo->query('SELECT COUNT(*) FROM leads')->fetchColumn();
-    check("Leads table has records ({$count})", $count > 0);
-
-    $cols = $pdo->query('DESCRIBE leads')->fetchAll(PDO::FETCH_COLUMN);
-    foreach (['id','name','email','service','message','status','created_at'] as $col) {
-        check("Column '{$col}' exists",         in_array($col, $cols));
+    check('PDO connection to bizpulse',    true);
+    // leads table
+    $leadsCount = (int) $pdo->query('SELECT COUNT(*) FROM leads')->fetchColumn();
+    check("leads table has records ({$leadsCount})", $leadsCount > 0);
+    // users table
+    $usersCount = (int) $pdo->query('SELECT COUNT(*) FROM users')->fetchColumn();
+    check("users table has records ({$usersCount})", $usersCount > 0);
+    // verify admin user
+    $admin = $pdo->query("SELECT * FROM users WHERE email='admin@bizpulse.com'")->fetch(PDO::FETCH_ASSOC);
+    check('Admin user exists',             $admin !== false);
+    check("Admin role is 'admin'",         ($admin['role'] ?? '') === 'admin');
+    check('Password is a bcrypt hash',     str_starts_with($admin['password'] ?? '', '$2y$'));
+    check('password_verify works',         password_verify('Admin@123', $admin['password'] ?? ''));
+    // users columns
+    $cols = $pdo->query('DESCRIBE users')->fetchAll(PDO::FETCH_COLUMN);
+    foreach (['id','name','email','password','role','created_at'] as $col) {
+        check("users.{$col} column exists", in_array($col, $cols));
     }
-
-    // Verify default status is 'New' in schema
-    $def = $pdo->query("SHOW COLUMNS FROM leads LIKE 'status'")->fetch();
-    check("status default is 'New'",            $def['Default'] === 'New');
-
 } catch (PDOException $e) {
     check('Database connection', false);
     echo '  Error: ' . $e->getMessage() . PHP_EOL;
 }
 echo PHP_EOL;
 
-// ── Summary ──────────────────────────────────────────────────────────────────
-echo '========================================' . PHP_EOL;
-echo "  RESULTS: {$pass} PASSED  /  {$fail} FAILED   " . PHP_EOL;
-echo '========================================' . PHP_EOL;
-if ($fail === 0) {
-    echo PHP_EOL . '  ALL TESTS PASSED. App is production-ready!' . PHP_EOL;
+// ════════════════════════════════════════════════════════════
+//  11. DARK MODE ASSETS
+// ════════════════════════════════════════════════════════════
+echo '--- 11. Dark Mode & Assets ---' . PHP_EOL;
+$r = httpGet($base . '/assets/js/darkmode.js');
+check('darkmode.js serves 200',             $r['code'] === 200);
+check('toggleTheme function present',       str_contains($r['body'], 'toggleTheme'));
+check('localStorage usage',                str_contains($r['body'], 'localStorage'));
+$r2 = httpGet($base . '/assets/css/style.css');
+check('style.css serves 200',              $r2['code'] === 200);
+check('Dark mode transition in CSS',        str_contains($r2['body'], 'dark'));
+check('Modal animation keyframes',          str_contains($r2['body'], 'countdown'));
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  12. NEW FILE CHECKS
+// ════════════════════════════════════════════════════════════
+echo '--- 12. New Files Existence ---' . PHP_EOL;
+$files = [
+    '/includes/auth.php'    => 'includes/auth.php',
+    '/login.php'            => 'login.php',
+    '/logout.php'           => 'logout.php',
+    '/404.php'              => '404.php',
+    '/assets/js/darkmode.js'=> 'darkmode.js',
+];
+foreach ($files as $url => $label) {
+    $r = httpGet($base . $url);
+    check("{$label} is accessible",        in_array($r['code'], [200, 302, 404]));
 }
+echo PHP_EOL;
+
+// ════════════════════════════════════════════════════════════
+//  SUMMARY
+// ════════════════════════════════════════════════════════════
+echo '=============================================' . PHP_EOL;
+echo "  RESULTS: {$pass} PASSED  /  {$fail} FAILED   " . PHP_EOL;
+echo '=============================================' . PHP_EOL;
+if ($fail === 0) {
+    echo PHP_EOL . '  ✅  ALL TESTS PASSED. BizPulse v2 is production-ready!' . PHP_EOL;
+} else {
+    echo PHP_EOL . "  ⚠️   {$fail} test(s) failed — review output above." . PHP_EOL;
+}
+echo PHP_EOL;

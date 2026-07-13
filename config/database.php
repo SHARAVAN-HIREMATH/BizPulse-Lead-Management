@@ -12,11 +12,18 @@
  */
 
 // ── Connection Parameters ────────────────────────────────────────────────────
-$host     = 'localhost';   // MySQL host (use 127.0.0.1 if localhost fails)
-$database = 'bizpulse';   // Database name
-$username = 'root';       // MySQL username
-$password = 'root';       // MySQL password
-$charset  = 'utf8mb4';    // Character set — supports full Unicode + emoji
+// LOCAL DEVELOPMENT (XAMPP / MySQL Workbench)
+$host     = '127.0.0.1';   // MySQL host — '127.0.0.1' forces TCP, avoiding socket auth issues
+$database = 'bizpulse';    // Database name (must match the SQL script)
+$username = 'root';        // MySQL username
+$password = 'root';        // MySQL password
+$charset  = 'utf8mb4';     // Character set — supports full Unicode + emoji
+
+// ── PRODUCTION (InfinityFree) — uncomment and replace values below ────────
+// $host     = 'sql302.infinityfree.com';
+// $database = 'if0_42395565_bizpulse';
+// $username = 'if0_42395565';
+// $password = 'YOUR_PRODUCTION_PASSWORD';
 // ────────────────────────────────────────────────────────────────────────────
 
 /**
