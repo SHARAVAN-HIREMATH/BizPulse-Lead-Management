@@ -30,3 +30,9 @@ logs/
 # ── Composer (not used in this project, but just in case) ────
 /vendor/
 composer.lock
+
+# ── Debug / Diagnostic scripts (development only) ────────────
+# These are local-only tools — never commit them to production
+database/diagnose.php
+database/debug.php
+database/verify.php

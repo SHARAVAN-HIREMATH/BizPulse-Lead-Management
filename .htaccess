@@ -1,0 +1,69 @@
+# ════════════════════════════════════════════════════════════════════════════
+#  BizPulse — Apache Configuration (.htaccess)
+#
+#  Purpose:
+#   1. Route all 404 Not Found errors to the custom 404.php page
+#   2. Prevent direct directory listing (security)
+#   3. Set default character set
+#
+#  Compatibility:
+#   - Apache 2.4+ (XAMPP, InfinityFree, shared hosting)
+#   - PHP built-in server uses router.php instead (see router.php)
+#
+#  ROOT CAUSE FIX (Issue 2):
+#   Without this file, Apache has no ErrorDocument directive and uses its own
+#   default 404 page. The custom 404.php was never reached for missing URLs.
+# ════════════════════════════════════════════════════════════════════════════
+
+# ── Require mod_rewrite to be enabled ────────────────────────────────────────
+Options -Indexes
+AddDefaultCharset UTF-8
+
+# ── Custom Error Pages ────────────────────────────────────────────────────────
+#
+#  When a visitor requests a URL that does not map to any file or directory,
+#  Apache will internally forward the request to /404.php.
+#
+#  IMPORTANT: This uses an internal sub-request (no redirect), so:
+#   - The browser URL stays as the original invalid URL (e.g., /abc)
+#   - The HTTP response code remains 404
+#   - 404.php calls http_response_code(404) to confirm the status code
+#
+ErrorDocument 404 /404.php
+
+# ── Rewrite Engine ────────────────────────────────────────────────────────────
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+
+    # Set the base path for rewrites
+    # On InfinityFree or in a subdirectory, set this to the subdirectory path
+    # e.g., RewriteBase /bizpulse/
+    RewriteBase /
+
+    # ── Security: block access to sensitive files ─────────────────────────
+    # Prevent direct browser access to PHP config/include files
+    RewriteRule ^config/             - [F,L]
+    RewriteRule ^includes/           - [F,L]
+    RewriteRule ^database/diagnose   - [F,L]
+    RewriteRule ^database/debug      - [F,L]
+
+    # ── Pass through existing files and directories ───────────────────────
+    # If the requested path exists as a real file or directory, serve it directly.
+    # This ensures .php files, /assets/, images etc. are served normally.
+    RewriteCond %{REQUEST_FILENAME} -f [OR]
+    RewriteCond %{REQUEST_FILENAME} -d
+    RewriteRule ^ - [L]
+
+    # ── 404 fallback ─────────────────────────────────────────────────────
+    # For anything that doesn't exist, serve the custom 404 page.
+    # Apache's ErrorDocument directive above handles this, but this rule
+    # ensures the rewrite engine doesn't interfere.
+
+</IfModule>
+
+# ── Security headers (optional, enable if host supports them) ─────────────────
+# <IfModule mod_headers.c>
+#     Header always set X-Content-Type-Options "nosniff"
+#     Header always set X-Frame-Options "SAMEORIGIN"
+#     Header always set Referrer-Policy "strict-origin-when-cross-origin"
+# </IfModule>

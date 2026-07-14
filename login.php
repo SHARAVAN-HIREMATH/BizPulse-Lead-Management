@@ -6,45 +6,54 @@
  * Handles both GET (show form) and POST (process login).
  *
  * Security:
- *  - session_regenerate_id(true) after successful login
- *  - password_verify() for hash comparison
- *  - Generic error message (never reveals which field is wrong)
+ *  - session_regenerate_id(true) after successful login (prevents session fixation)
+ *  - password_verify() for bcrypt hash comparison (never plain-text comparison)
+ *  - Generic error message for wrong credentials (never reveals which field is wrong)
  *  - HTTPOnly session cookie
- *  - POST-only for submission
+ *  - POST-only for form submission
+ *
+ * Error handling (v2.1 fix):
+ *  - getDB() now throws PDOException instead of calling die(json_encode(...))
+ *  - PDOException is caught here and rendered as a clean HTML error message
+ *  - Raw JSON is never exposed in the browser for UI pages
  */
 
 require_once __DIR__ . '/includes/auth.php';
 require_once __DIR__ . '/config/database.php';
 
-// ── Start session ─────────────────────────────────────────────────────────
+// ── Start hardened session ────────────────────────────────────────────────
 startSecureSession();
 
-// ── Redirect if already logged in ─────────────────────────────────────────
+// ── Redirect authenticated admins to the dashboard ────────────────────────
 if (isLoggedIn()) {
     header('Location: /admin.php');
     exit;
 }
 
-// ── Process login form ────────────────────────────────────────────────────
-$error        = '';
-$emailValue   = ''; // Repopulate email on error (never repopulate password)
+// ── Process login form (POST only) ───────────────────────────────────────
+$error      = '';
+$emailValue = ''; // Repopulate email field on error (never repopulate password)
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $rawEmail    = $_POST['email']    ?? '';
     $rawPassword = $_POST['password'] ?? '';
 
+    // Sanitise: strip illegal characters from email, trim whitespace from both
     $email    = trim(filter_var($rawEmail, FILTER_SANITIZE_EMAIL));
-    $password = trim($rawPassword); // Don't strip anything from passwords
+    $password = trim($rawPassword); // Do NOT strip characters from passwords
 
     if (empty($email) || empty($password)) {
         $error = 'Please enter both email and password.';
+
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Please enter a valid email address.';
+
     } else {
         try {
+            // getDB() now throws PDOException on failure — caught below
             $pdo = getDB();
 
-            // Fetch user by email (prepared statement)
+            // Fetch the user record by email using a prepared statement
             $stmt = $pdo->prepare(
                 'SELECT id, name, email, password, role
                  FROM   users
@@ -54,11 +63,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $stmt->execute([':email' => $email]);
             $user = $stmt->fetch();
 
-            // Verify password against bcrypt hash
+            // Verify password against the stored bcrypt hash
             if ($user && password_verify($password, $user['password']) && $user['role'] === 'admin') {
 
-                // ── Successful login ─────────────────────────────────────
-                // Regenerate session ID to prevent session fixation attacks
+                // ── Successful login ──────────────────────────────────────
+                // Regenerate session ID to prevent session fixation attacks.
+                // The old session data is migrated to the new ID.
                 session_regenerate_id(true);
 
                 $_SESSION['user_id']    = $user['id'];
@@ -66,13 +76,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $_SESSION['user_email'] = $user['email'];
                 $_SESSION['role']       = $user['role'];
 
-                // PRG pattern: redirect to admin
+                // PRG pattern: redirect after POST to prevent form re-submission
                 header('Location: /admin.php?logged_in=1');
                 exit;
 
             } else {
-                // Generic message — do not reveal whether email or password is wrong
-                $error = 'Invalid email or password. Please try again.';
+                // Generic message — never reveal which field (email or password) is wrong
+                $error      = 'Invalid email or password. Please try again.';
                 $emailValue = htmlspecialchars($email, ENT_QUOTES, 'UTF-8');
             }
 

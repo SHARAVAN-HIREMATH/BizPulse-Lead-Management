@@ -12,6 +12,11 @@
  *  - Full dark mode support
  *  - Improved responsive table + mobile card layout
  *  - Live search
+ *
+ * Error handling (v2.1 fix):
+ *  - getDB() now throws PDOException instead of die(json_encode(...))
+ *  - PDOException is caught here; a clean HTML error banner is shown
+ *  - Raw JSON is never exposed in the browser
  */
 
 // ── MUST be first — before any HTML output ────────────────────────────────
@@ -28,6 +33,9 @@ $user = currentUser();
 $justLoggedIn = isset($_GET['logged_in']) && $_GET['logged_in'] === '1';
 
 // ── Fetch statistics ──────────────────────────────────────────────────────
+// getDB() now throws PDOException on failure (v2.1 fix).
+// If the DB is unreachable, show zeroed stats and a visible error banner.
+$dbError = false;
 try {
     $pdo = getDB();
 
@@ -39,9 +47,13 @@ try {
     $leads = $pdo->query('SELECT * FROM leads ORDER BY created_at DESC')->fetchAll();
 
 } catch (PDOException $e) {
-    error_log('Admin dashboard error: ' . $e->getMessage());
-    $leads = [];
-    $totalLeads = $newLeads = $contactedLeads = 0;
+    // Log the technical details; never expose to the user
+    error_log('[BizPulse] Admin dashboard DB error: ' . $e->getMessage());
+    $leads          = [];
+    $totalLeads     = 0;
+    $newLeads       = 0;
+    $contactedLeads = 0;
+    $dbError        = true;
 }
 
 // ── Page meta ─────────────────────────────────────────────────────────────
@@ -84,6 +96,23 @@ require_once __DIR__ . '/includes/header.php';
 </div>
 
 <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+
+    <?php if ($dbError): ?>
+    <!-- ── Database error banner ────────────────────────────────────────── -->
+    <!-- Shown only when the DB is unreachable. Raw errors are never exposed. -->
+    <div class="mb-8 flex items-start gap-4 p-5 bg-red-50 dark:bg-red-900/30 border border-red-200 dark:border-red-800 rounded-2xl" role="alert">
+        <svg class="w-6 h-6 text-red-500 flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        <div>
+            <p class="font-semibold text-red-800 dark:text-red-200">Unable to load dashboard data</p>
+            <p class="text-sm text-red-600 dark:text-red-400 mt-1">
+                The database is temporarily unreachable. Please try refreshing the page.
+                If the problem persists, check your database configuration.
+            </p>
+        </div>
+    </div>
+    <?php endif; ?>
 
     <!-- ═══════════════════════════════════════════════════════════════════════
          STATISTICS CARDS

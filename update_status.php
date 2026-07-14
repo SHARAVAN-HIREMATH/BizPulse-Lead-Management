@@ -9,6 +9,11 @@
  *
  * Always returns JSON — never HTML.
  *
+ * Error handling (v2.1):
+ *  - getDB() now throws PDOException instead of die(json_encode(...))
+ *  - This endpoint's own catch(PDOException) at the bottom handles DB errors
+ *    and returns a proper JSON error response — this is correct for AJAX endpoints
+ *
  * Security:
  *  - Authenticated session required
  *  - POST + X-Requested-With: XMLHttpRequest required

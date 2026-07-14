@@ -4,13 +4,18 @@
  *
  * Receives a POST request from the contact form on index.php.
  * Validates and sanitises all input, inserts into the database
- * using PDO prepared statements, then redirects.
+ * using PDO prepared statements, then redirects (PRG pattern).
  *
- * Security measures:
+ * Security:
  *  - filter_var() for email validation
  *  - htmlspecialchars() NOT applied here (applied on output)
  *  - Prepared statements prevent SQL injection entirely
  *  - POST-only access enforced
+ *
+ * Error handling (v2.1):
+ *  - getDB() now throws PDOException instead of die(json_encode(...))
+ *  - PDOException is caught and the user is redirected with an error message
+ *  - Raw JSON is never shown in the browser
  */
 
 // ── Only allow POST requests ──────────────────────────────────────────────
@@ -119,7 +124,8 @@ try {
     exit;
 
 } catch (PDOException $e) {
-    // Log the real error server-side; show a friendly message to the user
-    error_log('Lead insertion failed: ' . $e->getMessage());
-    redirectWithError('Something went wrong. Please try again shortly.');
+    // Log the full technical error internally; redirect user with a friendly message.
+    // Never expose exception details to the browser.
+    error_log('[BizPulse] Lead insertion failed: ' . $e->getMessage());
+    redirectWithError('Unable to process your enquiry. Please try again later.');
 }
